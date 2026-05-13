@@ -249,14 +249,31 @@ function midiToFreq(m){ return 440*Math.pow(2,(m-69)/12); }
 function extractSkyline(canvas, cropY, n=48){
   const ctx=canvas.getContext("2d");
   const w=canvas.width, h=canvas.height;
-  return Array.from({length:n},(_,i)=>{
-    const x=Math.floor((i/n)*w);
-    let horizon=Math.floor(cropY*h);
-    for(let sy=Math.floor(cropY*h);sy>=0;sy--){
-      const [r,g,b]=ctx.getImageData(x,sy,1,1).data;
-      if((r*0.299+g*0.587+b*0.114)/255<0.45){horizon=sy;break;}
+  const imageData=ctx.getImageData(0,0,w,h).data;
+  const getPixel=(x,y)=>{
+    const i=(Math.floor(y)*w+Math.floor(x))*4;
+    return(imageData[i]*0.299+imageData[i+1]*0.587+imageData[i+2]*0.114)/255;
+  };
+  let skyBrightness=0;
+  for(let sx=0;sx<Math.min(w,40);sx++){
+    for(let sy=0;sy<Math.min(h*0.15,30);sy++){
+      skyBrightness+=getPixel(sx,sy);
     }
-    return Math.max(0,Math.min(1,1-horizon/h));
+  }
+  skyBrightness/=(40*30);
+  const threshold=Math.max(0.08,skyBrightness*0.75);
+  const rawElevs=Array.from({length:n},(_,i)=>{
+    const x=Math.floor((i/n)*w);
+    let peakY=h*0.85;
+    for(let sy=0;sy<h*0.9;sy++){
+      if(getPixel(x,sy)<threshold){peakY=sy;break;}
+    }
+    return 1-(peakY/h);
+  });
+  return rawElevs.map((e,i)=>{
+    const prev=rawElevs[Math.max(0,i-1)];
+    const next=rawElevs[Math.min(rawElevs.length-1,i+1)];
+    return(prev+e+next)/3;
   });
 }
 
